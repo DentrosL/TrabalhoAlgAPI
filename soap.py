@@ -154,8 +154,14 @@ def main():
     opcao = input("\nEscolha uma opção: ")
     codigo = input("Digite o código ISO do país: ").upper()
 
-    if opcao == "2":
+    if opcao == "1":
+        resultado = pais(codigo)
+    elif opcao == "2":
         resultado = capital(codigo)
+    elif opcao == "3":
+        resultado = moeda(codigo)
+    elif opcao == "4":
+        resultado = codigo_telefone(codigo)
     elif opcao == "5":
         print("Programa encerrado.")
         return
@@ -164,6 +170,7 @@ def main():
         return
 
     if resultado:
+        print("\nINFORMAÇÕES DO PAÍS")
 
         for chave, valor in resultado.items():
             print(f"{chave}: {valor}")
