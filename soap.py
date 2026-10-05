@@ -1,9 +1,65 @@
+import json
+import re
 import requests
 import xml.etree.ElementTree as ET
 
 URL = "http://webservices.oorsprong.org/websamples.countryinfo/CountryInfoService.wso"
 
+# Lista os códigos ISO e os nomes retornados pelo serviço em formato JSON
+def listar():
+    xml = (
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">'
+        '<soap:Body>'
+        '<ListOfCountryNamesByName xmlns="http://www.oorsprong.org/websamples.countryinfo" />'
+        '</soap:Body>'
+        '</soap:Envelope>'
+    )
+
+    try:
+        resposta = requests.post(
+            URL, data=xml, headers={"Content-Type": "text/xml"}, timeout=10
+        )
+        resposta.raise_for_status()
+        raiz = ET.fromstring(resposta.text)
+
+        # Cada registro precisa conter tanto o código ISO quanto o nome
+        paises = []
+        for registro in raiz.iter():
+            codigo = nome = None
+            for campo in registro:
+                if campo.tag.endswith("sISOCode"):
+                    codigo = (campo.text or "").strip()
+                elif campo.tag.endswith("sName"):
+                    nome = (campo.text or "").strip()
+            if codigo and nome:
+                paises.append(f"{codigo} - {nome}")
+
+        if not paises:
+            print("O serviço não retornou países em um formato reconhecido.")
+            return None
+        return json.dumps(paises, ensure_ascii=False, indent=2)
+    except requests.exceptions.RequestException:
+        print("Erro ao conectar com o Web Service.")
+        return None
+    except ET.ParseError:
+        print("Erro ao processar a resposta XML.")
+        return None
+
+
+def validar_codigo_iso(codigo):
+    # Normaliza e valida um código ISO antes de consultar o serviço
+    codigo = codigo.strip().upper()
+    if not re.fullmatch(r"[A-Z]{2}", codigo):
+        raise ValueError("O código ISO deve conter exatamente duas letras.")
+    return codigo
+
 def capital(codigo):
+    try:
+        codigo = validar_codigo_iso(codigo)
+    except (AttributeError, ValueError) as erro:
+        print(f"Código ISO inválido: {erro}")
+        return None
     # monta a mensagem SOAP com o código ISO informado
     xml = (
         '<?xml version="1.0" encoding="utf-8"?>'
@@ -54,6 +110,11 @@ def capital(codigo):
         return None
 
 def moeda(codigo):
+    try:
+        codigo = validar_codigo_iso(codigo)
+    except (AttributeError, ValueError) as erro:
+        print(f"Código ISO inválido: {erro}")
+        return None
     # monta a mensagem SOAP para consultar a moeda do país
     xml = (
         '<?xml version="1.0" encoding="utf-8"?>'
@@ -105,6 +166,11 @@ def moeda(codigo):
 
 
 def codigo_telefone(codigo):
+    try:
+        codigo = validar_codigo_iso(codigo)
+    except (AttributeError, ValueError) as erro:
+        print(f"Código ISO inválido: {erro}")
+        return None
     # monta a mensagem SOAP para consultar o código telefônico do país
     xml = (
         '<?xml version="1.0" encoding="utf-8"?>'
@@ -130,7 +196,7 @@ def codigo_telefone(codigo):
         resposta.raise_for_status()
         raiz = ET.fromstring(resposta.text)
 
-        # procura na resposta o elemento que contém o código telefônico.
+        # procura na resposta o elemento que contém o código telefônico
         for elemento in raiz.iter():
             if elemento.tag.endswith("CountryIntPhoneCodeResult"):
                 return {
@@ -150,6 +216,11 @@ def codigo_telefone(codigo):
 
 
 def pais(codigo):
+    try:
+        codigo = validar_codigo_iso(codigo)
+    except (AttributeError, ValueError) as erro:
+        print(f"Código ISO inválido: {erro}")
+        return None
     # cria um dicionário para reunir as informações do país
     resultado = {
         "codigo_iso": codigo
@@ -173,6 +244,7 @@ def pais(codigo):
 
 def main():
     print("INFO DO PAÍS")
+    print("0 - Consultar lista de países")
     print("1 - Consultar país")
     print("2 - Consultar capital")
     print("3 - Consultar moeda")
@@ -180,10 +252,13 @@ def main():
     print("5 - Sair")
 
     opcao = input("\nEscolha uma opção: ")
-    codigo = input("Digite o código ISO do país: ").upper()
+    if opcao in {"1", "2", "3", "4"}:
+        codigo = input("Digite o código ISO do país: ").upper()
 
     # executa a função correspondente à opção escolhida
-    if opcao == "1":
+    if opcao == "0":
+        resultado = listar()
+    elif opcao == "1":
         resultado = pais(codigo)
     elif opcao == "2":
         resultado = capital(codigo)
@@ -200,11 +275,14 @@ def main():
 
     # exibe os dados retornados pelo Web Service
     if resultado:
-        print("\nINFORMAÇÕES DO PAÍS")
+        print("\nLISTA DE PAISES")
 
         # percorre o dicionário e exibe cada informação
-        for chave, valor in resultado.items():
-            print(f"{chave}: {valor}")
-
+        if opcao == "0":
+            print(resultado)
+        else:
+            # percorre o dicionário e exibe cada informação
+            for chave, valor in resultado.items():
+                print(f"{chave}: {valor}")
 
 main()
